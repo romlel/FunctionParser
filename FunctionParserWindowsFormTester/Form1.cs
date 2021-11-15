@@ -7,7 +7,7 @@ namespace FunctionParserWindowsFormTester
     public partial class Form1 : Form
     {
         string[] idsNames=new string[] { };
-        double[] idsValues = new double[] { };
+        object[] idsValues = new object[] { };
         public Form1()
         {
             InitializeComponent();
@@ -117,6 +117,10 @@ namespace FunctionParserWindowsFormTester
                         TreeNode number = new TreeNode("Number: " + factor.Value);
                         treeViewNode.Nodes.Add(number);
                         break;
+                    case Factor.FactorExpansion.String:
+                        TreeNode string0 = new TreeNode("String: " + factor.Value);
+                        treeViewNode.Nodes.Add(string0);
+                        break;
                     case Factor.FactorExpansion.ID:
                         TreeNode id = new TreeNode("ID: " + factor.Value);
                         treeViewNode.Nodes.Add(id);
@@ -154,8 +158,8 @@ namespace FunctionParserWindowsFormTester
                 trvw_ParseTree.Nodes.Clear();
                 trvw_ParseTree.Nodes.Add(expr);
                 trvw_ParseTree.ExpandAll();
-                double result = expression.CalculateValue(idsValues);
-                lbl_result.Text = string.Format("= {0:f3}", result);
+                object result = expression.CalculateValue(idsValues);
+                lbl_result.Text = result.ToString();// string.Format("= {0:f3}", result);
             }
             else
             {
@@ -191,11 +195,11 @@ namespace FunctionParserWindowsFormTester
         public void UpdateIDs()
         {
             idsNames = new string[lst_ids.Items.Count];
-            idsValues = new double[lst_ids.Items.Count];
+            idsValues = new object[lst_ids.Items.Count];
             for(int i=0;i<lst_ids.Items.Count;i++)
             {
                 idsNames[i] = lst_ids.Items[i].Text;
-                idsValues[i] =double.Parse( lst_ids.Items[i].SubItems[1].Text);
+                idsValues[i] =/*double.Parse*/( lst_ids.Items[i].SubItems[1].Text);
             }
         }
     }

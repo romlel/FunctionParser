@@ -1,14 +1,10 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-
-// TODO: 
-// CalculateValue(string[] ids, double[][] idsValues) -> comprendre le but, implémenter
-// ___REPLACEMENT___ : être plus robuste
-
 
 namespace FunctionParser
 {
@@ -21,13 +17,13 @@ namespace FunctionParser
             foreach (Match m in Regex.Matches(input, pattern1))
             {
                 input = input.Replace(m.Groups[0].ToString(),
-                                      m.Groups[0].ToString().Replace(",", "___REPLACEMENT___"));
+                                      m.Groups[0].ToString().Replace(",", "___86DAF157-DDD8-4250-80EF-623004AD422F___"));
             }
 
             string[] result = input.Split(',');
             for (int i = 0; i < result.Count(); i++)
             {
-                result[i] = result[i].Replace("___REPLACEMENT___", ",").Trim();
+                result[i] = result[i].Replace("___86DAF157-DDD8-4250-80EF-623004AD422F___", ",").Trim();
 
             }
             return result;
@@ -39,8 +35,8 @@ namespace FunctionParser
 
         public class Executor
         {
-            public Func<double, double> Compute;
-            public Func<double, double, double> Compute2;
+            public Func<object, object> Compute;
+            public Func<object, object, object> Compute2;
         }
 
         public static Dictionary<string, Executor> _Catalog = new Dictionary<string, Executor>();
@@ -75,7 +71,7 @@ namespace FunctionParser
 
         static Function()
         {
-            _Catalog.Add("do", new Executor() { Compute = a => a * 2 , Compute2 = (a,b)=>a+b});
+            _Catalog.Add("do", new Executor() {  Compute = a => (double)a * 2 , Compute2 = (a,b)=> (double)a + (double)b });
         }
 
         public Function(string function, string[] ids, ParsTreeNode parent)
@@ -105,9 +101,9 @@ namespace FunctionParser
                 }
             }
         }
-        public override double CalculateValue(double[] idsValue)
+        public override object CalculateValue(object[] idsValue)
         {
-            double[] termValue = this.Terms.Select(a => a.CalculateValue(idsValue)).ToArray();
+            object[] termValue = this.Terms.Select(a => a.CalculateValue(idsValue)).ToArray();
 
             switch (termValue.Length)
             {
@@ -169,13 +165,15 @@ namespace FunctionParser
                     return ret;*/
 
             }
-        public override double[] CalculateValue(string[] ids, double[][] idsValues)
+        public override object[] CalculateValue(string[] ids, object[][] idsValues)
         {
-            double[][] termValue = this.Terms.Select (a=> a.CalculateValue(ids, idsValues)).ToArray();
-            double[] ret = new double[termValue.Length];
+            return idsValues.Select(a => CalculateValue(a)).ToArray();
+
+       /*     object[][] termValue = this.Terms.Select (a=> a.CalculateValue(ids, idsValues)).ToArray();
+            object[] ret = new object[termValue.Length];
             
             for (int i = 0; i < ret.Length; i++)
-                ret[i] = Math.Sin(termValue[i][0] * Math.PI / 180);
+                ret[i] = Math.Sin(termValue[i][0] * Math.PI / 180);*/
 
            // return termValue.e Func.Compute(termValue[0]);
 
@@ -242,7 +240,7 @@ namespace FunctionParser
                          ret[i] = (Math.Log(Math.E, termValue[i]));
                      break;
              }*/
-            return ret;
+        //    return ret;
 
         }
     }
@@ -251,6 +249,7 @@ namespace FunctionParser
         public enum FactorExpansion
         {
             Number,//1,2,3,etc
+            String,//"abc"
             Function,//sin,cos,etc
             MinuFactor,//-x,-15,-sin,-(x+1),etc
             WrappedExpression,//(expression)
@@ -260,6 +259,8 @@ namespace FunctionParser
         {
             double tst;
             if (double.TryParse(factor, out tst))
+                return true;
+            else if (factor.StartsWith("\"") && factor.EndsWith("\"") && factor.Length > 1)
                 return true;
             else if (factor.StartsWith("(") && factor.EndsWith(")") && Expression.IsExpression(factor.Substring(1, factor.Length - 2), ids))
                 return true;
@@ -295,7 +296,6 @@ namespace FunctionParser
             double value;
             if (double.TryParse(factor, out value))
             {
-
                 this.Expansion = FactorExpansion.Number;
             }
             else
@@ -304,6 +304,12 @@ namespace FunctionParser
                 {
                     this.Expansion = FactorExpansion.WrappedExpression;
                     this.WrappedExpression = new Expression(factor.Substring(1, factor.Length - 2), ids, this);
+                }
+                else if (factor.StartsWith("\"") && factor.EndsWith("\""))
+                {
+                    //this.Expansion = FactorExpansion.WrappedExpression;
+                    this.Expansion = FactorExpansion.String;
+                    this.Value = factor.Substring(1, factor.Length - 2);
                 }
                 else if (Function.IsFunction(factor, ids))
                 {
@@ -323,11 +329,15 @@ namespace FunctionParser
             }
 
         }
-        public override double CalculateValue(double[] idsValue)
+        public override object CalculateValue(object[] idsValue)
         {
             if (Expansion == FactorExpansion.Number)
             {
                 return (double.Parse(this.Value));
+            }
+            if (Expansion == FactorExpansion.String)
+            {
+                return this.Value;
             }
             else if (Expansion == FactorExpansion.WrappedExpression)
             {
@@ -339,7 +349,7 @@ namespace FunctionParser
             }
             else if(Expansion== FactorExpansion.MinuFactor)
             {
-                return -this.InnerFactor.CalculateValue(idsValue);
+                return -(double)(this.InnerFactor.CalculateValue(idsValue));
             }
             else
             {
@@ -355,43 +365,12 @@ namespace FunctionParser
 
             }
         }
-        public override double[] CalculateValue(string[] ids, double[][] idsValues)
+        public override object[] CalculateValue(string[] ids, object[][] idsValues)
         {
-            if (Expansion == FactorExpansion.Number)
-            {
-                double[] ret = new double[idsValues.Length];
-                double value = double.Parse(this.Value);
-                for (int i = 0; i < ret.Length; i++)
-                    ret[i] = value;
-                return ret;
-            }
-            else if (Expansion == FactorExpansion.WrappedExpression)
-            {
-                return (WrappedExpression.CalculateValue(ids, idsValues));
-            }
-            else if (Expansion == FactorExpansion.Function)
-            {
-                return (this.Function.CalculateValue(ids, idsValues));
-            }
-            else if(Expansion== FactorExpansion.MinuFactor)
-            {
-                double[] result = this.InnerFactor.CalculateValue(ids, idsValues);
-                for (int i = 0; i < result.Length; i++)
-                    result[i] = -result[i];
-                return result;
-            }
-            else
-            {
-                //ID
-                int idIndex = -1;
-                for (int i = 0; i < ids.Length; i++)
-                    if (ids[i] == this.Value)
-                    {
-                        idIndex = i;
-                        break;
-                    }
-                return idsValues[idIndex];
-            }
+            //IEnumerator idE = ids.GetEnumerator();
+            //IEnumerator idsValuesE = idsValues.GetEnumerator();
+
+            return idsValues.Select(a => CalculateValue(a)).ToArray();
         }
     }
     public class Term : ParsTreeNode
@@ -480,52 +459,55 @@ namespace FunctionParser
             }
 
         }
-        public override double CalculateValue(double[] idsValue)
+        public override object CalculateValue(object[] idsValue)
         {
+            //rlel will crash if not numbers (doubles)
             if (Expansion == TermExpansion.TermDivFactor)
             {
-                return (this.SubTerm.CalculateValue(idsValue) / this.Factor.CalculateValue(idsValue));
+                return ((double)this.SubTerm.CalculateValue(idsValue) / (double)this.Factor.CalculateValue(idsValue));
             }
             else if (Expansion == TermExpansion.TermMulFactor)
             {
-                return (this.SubTerm.CalculateValue(idsValue) * this.Factor.CalculateValue(idsValue));
+                return ((double)this.SubTerm.CalculateValue(idsValue) * (double)this.Factor.CalculateValue(idsValue));
             }
             else if (Expansion == TermExpansion.TermPowFactor)
             {
-                return (Math.Pow(this.SubTerm.CalculateValue(idsValue), this.Factor.CalculateValue(idsValue)));
+                return (Math.Pow((double)this.SubTerm.CalculateValue(idsValue), (double)this.Factor.CalculateValue(idsValue)));
             }
             else
                 return (this.Factor.CalculateValue(idsValue));
         }
-        public override double[] CalculateValue(string[] ids, double[][] idsValues)
+        public override object[] CalculateValue(string[] ids, object[][] idsValues)
         {
-            double[] ret = new double[idsValues.Length];
+            return idsValues.Select(a => CalculateValue(a)).ToArray();
+            /*
+            object[] ret = new object[idsValues.Length];
             if (Expansion == TermExpansion.TermDivFactor)
             {
-                double[] subtermValues = this.SubTerm.CalculateValue(ids, idsValues);
-                double[] factorValues = this.Factor.CalculateValue(ids, idsValues);
+                object[] subtermValues = this.SubTerm.CalculateValue(ids, idsValues);
+                object[] factorValues = this.Factor.CalculateValue(ids, idsValues);
                 for (int i = 0; i < ret.Length; i++)
                     ret[i] = subtermValues[i] / factorValues[i];
                 return ret;
             }
             else if (Expansion == TermExpansion.TermMulFactor)
             {
-                double[] subtermValues = this.SubTerm.CalculateValue(ids, idsValues);
-                double[] factorValues = this.Factor.CalculateValue(ids, idsValues);
+                object[] subtermValues = this.SubTerm.CalculateValue(ids, idsValues);
+                object[] factorValues = this.Factor.CalculateValue(ids, idsValues);
                 for (int i = 0; i < ret.Length; i++)
                     ret[i] = subtermValues[i] * factorValues[i];
                 return ret;
             }
             else if (Expansion == TermExpansion.TermPowFactor)
             {
-                double[] subtermValues = this.SubTerm.CalculateValue(ids, idsValues);
-                double[] factorValues = this.Factor.CalculateValue(ids, idsValues);
+                object[] subtermValues = this.SubTerm.CalculateValue(ids, idsValues);
+                object[] factorValues = this.Factor.CalculateValue(ids, idsValues);
                 for (int i = 0; i < ret.Length; i++)
                     ret[i] = Math.Pow(subtermValues[i], factorValues[i]);
                 return ret;
             }
             else
-                return (this.Factor.CalculateValue(ids, idsValues));
+                return (this.Factor.CalculateValue(ids, idsValues));*/
         }
     }
     public class Expression : ParsTreeNode
@@ -568,13 +550,29 @@ namespace FunctionParser
         {
             return c == '-' || c == '+' || c == '*' || c == '/' || c == '^';
         }
+
+        public static Regex matcher = new Regex(
+      "\\\"[^\\\"]+\\\"|(.+)",
+    RegexOptions.CultureInvariant
+    | RegexOptions.Compiled
+    );
+
+
+
         public ExpressionExpansion Expansion { get; set; }
         public Term Term { get; set; }
         public Expression SubExpression { get; set; }
         public Expression(string expr, string[] ids, ParsTreeNode parent)
             : base(expr, ids, parent)
         {
-            expr=expr.Replace(" ", "");
+           
+
+            matcher.Replace(expr, (ma) => {
+
+                return ma.ToString();
+                //ma.
+                });
+            expr = expr.Replace(" ", "");
             int oprIndx = -1;
             int brackets = 0;
             for (int i = expr.Length - 1; i > 0; i--)
@@ -612,48 +610,61 @@ namespace FunctionParser
                 this.Term = new Term(expr, ids, this);
             }
         }
-        public override double CalculateValue(double[] idsValue)
+        public override object CalculateValue(object[] idsValue)
         {
             if (Expansion == ExpressionExpansion.ExpressionMinusTerm)
             {
-                return (this.SubExpression.CalculateValue(idsValue) - this.Term.CalculateValue(idsValue));
+                var a = this.SubExpression.CalculateValue(idsValue);
+                var b = this.Term.CalculateValue(idsValue);
+
+                if (a is double && b is double)
+                    return ((double)a - (double)b);
+                else
+                    return a.ToString();    //IMPOSSIBLE
             }
             else if (Expansion == ExpressionExpansion.ExpressionPlusTerm)
             {
-                return (this.SubExpression.CalculateValue(idsValue) + this.Term.CalculateValue(idsValue));
+                var a = this.SubExpression.CalculateValue(idsValue);
+                var b = this.Term.CalculateValue(idsValue);
+                if (a is double && b is double)
+                    return ((double)a + (double)b);
+                else
+                    return a.ToString() + b.ToString();
             }
             else
                 return (this.Term.CalculateValue(idsValue));
         }
-        public override double[] CalculateValue(string[] ids, double[][] idsValues)
+        public override object[] CalculateValue(string[] ids, object[][] idsValues)
         {
-            double[] ret = new double[idsValues.Length];
+            return idsValues.Select(a => CalculateValue(a)).ToArray();
+            /*
+            object[] ret = new object[idsValues.Length];
             if (Expansion == ExpressionExpansion.ExpressionMinusTerm)
             {
-                double[] subExprValues = this.SubExpression.CalculateValue(ids, idsValues);
-                double[] termValues = this.Term.CalculateValue(ids, idsValues);
+                object[] subExprValues = this.SubExpression.CalculateValue(ids, idsValues);
+                object[] termValues = this.Term.CalculateValue(ids, idsValues);
                 for (int i = 0; i < ret.Length; i++)
                     ret[i] = subExprValues[i] - termValues[i];
                 return ret;
             }
             else if (Expansion == ExpressionExpansion.ExpressionPlusTerm)
             {
-                double[] subExprValues = this.SubExpression.CalculateValue(ids, idsValues);
-                double[] termValues = this.Term.CalculateValue(ids, idsValues);
+                object[] subExprValues = this.SubExpression.CalculateValue(ids, idsValues);
+                object[] termValues = this.Term.CalculateValue(ids, idsValues);
                 for (int i = 0; i < ret.Length; i++)
                     ret[i] = subExprValues[i] + termValues[i];
                 return ret;
             }
             else
-                return (this.Term.CalculateValue(ids, idsValues));
+                return (this.Term.CalculateValue(ids, idsValues));*/
         }
 
     }
     public abstract class ParsTreeNode
     {
         public string Value { get; set; }
-        public abstract double CalculateValue(double[] idsValue);
-        public abstract double[] CalculateValue(string[] ids, double[][] idsValues);
+        public abstract object CalculateValue(object[] idsValue);
+        public abstract object[] CalculateValue(string[] ids, object[][] idsValues);
         public ParsTreeNode Parent { get; set; }
         public string[] IDs { get; set; }
         protected ParsTreeNode(string value, string[] ids, ParsTreeNode parnet)
