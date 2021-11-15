@@ -131,10 +131,13 @@ namespace FunctionParserWindowsFormTester
                         break;
                     case Factor.FactorExpansion.Function:
                         treeViewNode.Nodes.Add("Function: " + factor.Function.Func.ToString());
-                        TreeNode term = new TreeNode("Term: " + factor.Function.Term.Value);
-                        term.Tag = factor.Function.Term;
-                        CreateTreeNodes(factor.Function.Term, term);
-                        treeViewNode.Nodes.Add(term);
+                        foreach (var factor_Function_Term in factor.Function.Terms)
+                        {
+                            TreeNode term = new TreeNode("Term: " + factor_Function_Term.Value);
+                            term.Tag = factor.Function.Terms;
+                            CreateTreeNodes(factor_Function_Term, term);
+                            treeViewNode.Nodes.Add(term);
+                        }
                         break;
                 }
             }
