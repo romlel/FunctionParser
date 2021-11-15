@@ -149,21 +149,28 @@ namespace FunctionParserWindowsFormTester
 
         private void txt_expr_TextChanged(object sender, EventArgs e)
         {
-            if (Expression.IsExpression(txt_expr.Text, idsNames))
+            try
             {
-                txt_expr.ForeColor = Color.Black;
-                Expression expression = new Expression(txt_expr.Text, idsNames, null);
-                TreeNode expr = new TreeNode(txt_expr.Text);
-                CreateTreeNodes(expression, expr);
-                trvw_ParseTree.Nodes.Clear();
-                trvw_ParseTree.Nodes.Add(expr);
-                trvw_ParseTree.ExpandAll();
-                object result = expression.CalculateValue(idsValues);
-                lbl_result.Text = result.ToString();// string.Format("= {0:f3}", result);
+                if (Expression.IsExpression(txt_expr.Text))//, idsNames))
+                {
+                    txt_expr.ForeColor = Color.Black;
+                    Expression expression = new Expression(txt_expr.Text, idsNames, null);
+                    TreeNode expr = new TreeNode(txt_expr.Text);
+                    CreateTreeNodes(expression, expr);
+                    trvw_ParseTree.Nodes.Clear();
+                    trvw_ParseTree.Nodes.Add(expr);
+                    trvw_ParseTree.ExpandAll();
+                    object result = expression.CalculateValue(idsValues);
+                    lbl_result.Text = result.ToString();// string.Format("= {0:f3}", result);
+                }
+                else
+                {
+                    txt_expr.ForeColor = Color.Red;
+                }
             }
-            else
+            catch
             {
-                txt_expr.ForeColor = Color.Red;
+                txt_expr.ForeColor = Color.Orange;
             }
         }
         

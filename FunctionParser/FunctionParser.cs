@@ -28,6 +28,20 @@ namespace FunctionParser
             }
             return result;
         }
+        internal static string KeepOnlyQuotedSpaces(string input)
+        {
+            string pattern1 = @""".*?""";
+
+            foreach (Match m in Regex.Matches(input, pattern1))
+            {
+                input = input.Replace(m.Groups[0].ToString(),
+                                      m.Groups[0].ToString().Replace(" ", "___9D4BC392-BDD6-48F9-8204-4C64E0464882___"));
+            }
+
+            input = input.Replace(" ", "");
+            input = input.Replace("___9D4BC392-BDD6-48F9-8204-4C64E0464882___", " ");
+            return input;
+        }
     }
 
     public class Function : ParsTreeNode
@@ -274,6 +288,7 @@ namespace FunctionParser
         }
         private static bool IsID(string id, string[] ids)
         {
+            if (ids == null) return true;
             foreach (string s in ids)
             {
                 if (id == s)
@@ -518,7 +533,14 @@ namespace FunctionParser
             ExpressionMinusTerm,
             Term
         }
-        public static bool IsExpression(string expr, string[] ids)
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="expr"></param>
+        /// <param name="ids">if ids is null, we won't check that aspect and validate anything as expression concerning ids</param>
+        /// <returns></returns>
+        public static bool IsExpression(string expr, string[] ids = null)
         {
             expr = expr.Replace(" ", "");
             int oprIndx = -1;
@@ -565,14 +587,10 @@ namespace FunctionParser
         public Expression(string expr, string[] ids, ParsTreeNode parent)
             : base(expr, ids, parent)
         {
-           
 
-            matcher.Replace(expr, (ma) => {
 
-                return ma.ToString();
-                //ma.
-                });
-            expr = expr.Replace(" ", "");
+            expr= Commons.KeepOnlyQuotedSpaces(expr);
+
             int oprIndx = -1;
             int brackets = 0;
             for (int i = expr.Length - 1; i > 0; i--)

@@ -27,6 +27,7 @@ namespace ConsoleDemo
                     //trvw_ParseTree.Nodes.Clear();
                     //trvw_ParseTree.Nodes.Add(expr);
                     //trvw_ParseTree.ExpandAll();
+                    expression.IDs
                     object result = expression.CalculateValue(idsValues);
 
                     Console.WriteLine(result.ToString());
