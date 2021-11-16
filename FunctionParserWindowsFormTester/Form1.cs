@@ -149,18 +149,19 @@ namespace FunctionParserWindowsFormTester
 
         private void txt_expr_TextChanged(object sender, EventArgs e)
         {
+            ConnectorsClass Connectors = null; ;
             try
             {
-                if (Expression.IsExpression(txt_expr.Text))//, idsNames))
+                if (Statics.IsExpression(Connectors, txt_expr.Text))//, idsNames))
                 {
                     txt_expr.ForeColor = Color.Black;
-                    Expression expression = new Expression(txt_expr.Text, idsNames, null);
+                    Expression expression = new Expression(Connectors, txt_expr.Text, null);
                     TreeNode expr = new TreeNode(txt_expr.Text);
                     CreateTreeNodes(expression, expr);
                     trvw_ParseTree.Nodes.Clear();
                     trvw_ParseTree.Nodes.Add(expr);
                     trvw_ParseTree.ExpandAll();
-                    object result = expression.CalculateValue();
+                    object result = expression.CalculateValue(Connectors);
                     lbl_result.Text = result.ToString();// string.Format("= {0:f3}", result);
                 }
                 else

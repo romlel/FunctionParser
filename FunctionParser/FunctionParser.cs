@@ -44,16 +44,112 @@ namespace FunctionParser
         }
     }
 
-    public static class Connectors
+    public class Statics
     {
-        public static Func<string, bool> IsProperId = a => true;
-        public static Func<string, object> GetIdValue = a => 0.0;
-        public static Func<string, object[], object> ExecuteFunction = (a, b) => 0.0;
+        internal static bool IsFactor(ConnectorsClass Connectors, string factor)
+        {
+            double tst;
+            if (double.TryParse(factor, out tst))
+                return true;
+            else if (factor.StartsWith("\"") && factor.EndsWith("\"") && factor.Length > 1)
+                return true;
+            else if (factor.StartsWith("(") && factor.EndsWith(")") && Statics.IsExpression(Connectors, factor.Substring(1, factor.Length - 2)))
+                return true;
+            else if (factor.StartsWith("-") && Statics.IsFactor(Connectors, factor.Substring(1, factor.Length - 1)))
+                return true;
+            else if (FunctionParser.Function.IsFunction(Connectors, factor))
+                return true;
+            else if (IsID(Connectors, factor))
+                return true;
+            else { return false; }
+        }
+
+        internal static bool IsID(ConnectorsClass Connectors, string id)
+        {
+           return  Connectors.IsProperId(id);    // always true, but cannot be whitespace !
+         
+        }
+
+        internal static bool IsTerm(ConnectorsClass Connectors, string term)
+        {
+            int oprIndx = -1;
+            int brackets = 0;
+            for (int i = term.Length - 1; i > 0; i--)
+            {
+                if ((term[i] == '*' || term[i] == '/' || term[i] == '^') && (brackets == 0))
+                {
+                    oprIndx = i;
+                    break;
+                }
+                else if (term[i] == ')') brackets++;
+                else if (term[i] == '(') brackets--;
+            }
+            if (oprIndx > 0)
+            {
+
+                string subterm, factor;
+                subterm = term.Substring(0, oprIndx);
+                factor = term.Substring(oprIndx + 1);
+                return Statics.IsTerm(Connectors, subterm) && Statics.IsFactor(Connectors,factor);
+            }
+            else
+            {
+                return FunctionParser.Statics.IsFactor(Connectors, term);
+            }
+
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="expr"></param>
+        /// <param name="ids">if ids is null, we won't check that aspect and validate anything as expression concerning ids</param>
+        /// <returns></returns>
+        public static bool IsExpression(ConnectorsClass Connectors, string expr, string[] ids = null)
+        {
+            expr = expr.Replace(" ", "");
+            int oprIndx = -1;
+            int brackets = 0;
+            for (int i = expr.Length - 1; i > 0; i--)
+            {
+                if (((expr[i] == '-' && !IsOperator(expr[i - 1]))
+                    || expr[i] == '+') && (brackets == 0))
+                {
+                    oprIndx = i;
+                    break;
+                }
+                else if (expr[i] == ')') brackets++;
+                else if (expr[i] == '(') brackets--;
+            }
+            if (oprIndx > 0)
+            {
+                string subExpr, term;
+                subExpr = expr.Substring(0, oprIndx);
+                term = expr.Substring(oprIndx + 1);
+                return (FunctionParser.Statics.IsTerm(Connectors, term) && IsExpression(Connectors, subExpr));
+            }
+            else
+            {
+                return FunctionParser.Statics.IsTerm(Connectors, expr);
+            }
+        }
+        internal static bool IsOperator(char c)
+        {
+            return c == '-' || c == '+' || c == '*' || c == '/' || c == '^';
+        }
+
+
+    }
+
+        public  class ConnectorsClass
+    {
+        public  Func<string, bool> IsProperId = a => true;
+        public  Func<string, object> GetIdValue = a => 0.0;
+        public  Func<string, object[], object> ExecuteFunction = (a, b) => 0.0;
     }
 
     public class Function : ParsTreeNode
     {
-
+        //ConnectorsClass Connectors = new ConnectorsClass();
         //public class Executor
         //{
         //    public Func<object, object> Compute;
@@ -78,7 +174,7 @@ namespace FunctionParser
 
 
 
-        public static bool IsFunction(string function, string[] ids)
+        public static bool IsFunction(ConnectorsClass Connectors, string function)
         {
             function = function.ToLower();
             Match data = fnRecognizer.Match(function);
@@ -89,7 +185,7 @@ namespace FunctionParser
 
                 if (string.IsNullOrWhiteSpace(attributes)) return true; //no args
 
-                return Commons.SplitComma(attributes).All(a => Term.IsTerm(a, ids));
+                return Commons.SplitComma(attributes).All(a => Statics.IsTerm(Connectors,a));
             }
             
             return false;
@@ -103,8 +199,8 @@ namespace FunctionParser
             //_Catalog.Add("do", new Executor() {  Compute = a => (double)a * 2 , Compute2 = (a,b)=> (double)a + (double)b });
         }
 
-        public Function(string function, string[] ids, ParsTreeNode parent)
-            : base(function, ids, parent)
+        public Function(ConnectorsClass Connectors, string function,  ParsTreeNode parent)
+            : base(function, parent)
         {
 
             Match data = fnRecognizer.Match(function);
@@ -126,7 +222,7 @@ namespace FunctionParser
                         {
                             foreach (var el in Commons.SplitComma(attributes))
                             {
-                                this.Terms.Add(new Term(el, ids, this));
+                                this.Terms.Add(new Term(Connectors, el, this));
                             }
                         }
                     }
@@ -136,9 +232,9 @@ namespace FunctionParser
                 }
             }
         }
-        public override object CalculateValue()
+        public override object CalculateValue(ConnectorsClass Connectors)
         {
-            object[] termValue = this.Terms.Select(a => a.CalculateValue()).ToArray();
+            object[] termValue = this.Terms.Select(a => a.CalculateValue(Connectors)).ToArray();
 
             return Connectors.ExecuteFunction(FuncName, termValue);
 
@@ -202,9 +298,9 @@ namespace FunctionParser
                     return ret;*/
 
             }
-        public override object[] CalculateValue(string[] ids, object[][] idsValues)
+        public override object[] CalculateValue(ConnectorsClass Connectors,  object[][] idsValues)
         {
-            return idsValues.Select(a => CalculateValue()).ToArray();
+            return idsValues.Select(a => CalculateValue(Connectors)).ToArray();
 
        /*     object[][] termValue = this.Terms.Select (a=> a.CalculateValue(ids, idsValues)).ToArray();
             object[] ret = new object[termValue.Length];
@@ -292,42 +388,13 @@ namespace FunctionParser
             WrappedExpression,//(expression)
             ID//x
         }
-        public static bool IsFactor(string factor, string[] ids)
-        {
-            double tst;
-            if (double.TryParse(factor, out tst))
-                return true;
-            else if (factor.StartsWith("\"") && factor.EndsWith("\"") && factor.Length > 1)
-                return true;
-            else if (factor.StartsWith("(") && factor.EndsWith(")") && Expression.IsExpression(factor.Substring(1, factor.Length - 2), ids))
-                return true;
-            else if (factor.StartsWith("-") && Factor.IsFactor(factor.Substring(1, factor.Length - 1), ids))
-                return true;
-            else if (FunctionParser.Function.IsFunction(factor, ids))
-                return true;
-            else if (IsID(factor, ids))
-                return true;
-            else { return false; }
-        }
-        private static bool IsID(string id, string[] ids)
-        {
-            if (ids == null) return (id.Trim().Length != 0) && Connectors.IsProperId(id);    // always true, but cannot be whitespace !
-            foreach (string s in ids)
-            {
-                if (id == s)
-                {
-                    return true;
-                }
-
-            }
-            return false;
-        }
+       
         public FactorExpansion Expansion { get; set; }
         public Function Function { get; set; }
         public Expression WrappedExpression { get; set; }
         public Factor InnerFactor;
-        public Factor(string factor, string[] ids, ParsTreeNode parent)
-            : base(factor, ids, parent)
+        public Factor(ConnectorsClass Connectors, string factor, ParsTreeNode parent)
+            : base(factor, parent)
         {
 
             this.Value = factor;
@@ -341,7 +408,7 @@ namespace FunctionParser
                 if (factor.StartsWith("(") && factor.EndsWith(")"))
                 {
                     this.Expansion = FactorExpansion.WrappedExpression;
-                    this.WrappedExpression = new Expression(factor.Substring(1, factor.Length - 2), ids, this);
+                    this.WrappedExpression = new Expression(Connectors, factor.Substring(1, factor.Length - 2), this);
                 }
                 else if (factor.StartsWith("\"") && factor.EndsWith("\""))
                 {
@@ -349,16 +416,16 @@ namespace FunctionParser
                     this.Expansion = FactorExpansion.String;
                     this.Value = factor.Substring(1, factor.Length - 2);
                 }
-                else if (Function.IsFunction(factor, ids))
+                else if (Function.IsFunction(Connectors, factor))
                 {
                     this.Expansion = FactorExpansion.Function;
-                    this.Function = new Function(factor, ids, this);
+                    this.Function = new Function(Connectors, factor, this);
 
                 }
                 else if(factor.StartsWith("-"))
                 {
                     this.Expansion = FactorExpansion.MinuFactor;
-                    this.InnerFactor = new Factor(factor.Substring(1, factor.Length - 1), ids, this);
+                    this.InnerFactor = new Factor(Connectors, factor.Substring(1, factor.Length - 1), this);
                 }
                 else
                 {
@@ -367,7 +434,7 @@ namespace FunctionParser
             }
 
         }
-        public override object CalculateValue()
+        public override object CalculateValue(ConnectorsClass Connectors)
         {
             if (Expansion == FactorExpansion.Number)
             {
@@ -379,15 +446,15 @@ namespace FunctionParser
             }
             else if (Expansion == FactorExpansion.WrappedExpression)
             {
-                return (WrappedExpression.CalculateValue());
+                return (WrappedExpression.CalculateValue(Connectors));
             }
             else if (Expansion == FactorExpansion.Function)
             {
-                return (this.Function.CalculateValue());
+                return (this.Function.CalculateValue(Connectors));
             }
             else if(Expansion== FactorExpansion.MinuFactor)
             {
-                return -(double)(this.InnerFactor.CalculateValue());
+                return -(double)(this.InnerFactor.CalculateValue(Connectors));
             }
             else
             {
@@ -405,12 +472,12 @@ namespace FunctionParser
 
             }
         }
-        public override object[] CalculateValue(string[] ids, object[][] idsValues)
+        public override object[] CalculateValue(ConnectorsClass Connectors,  object[][] idsValues)
         {
             //IEnumerator idE = ids.GetEnumerator();
             //IEnumerator idsValuesE = idsValues.GetEnumerator();
 
-            return idsValues.Select(a => CalculateValue()).ToArray();
+            return idsValues.Select(a => CalculateValue(Connectors)).ToArray();
         }
     }
     public class Term : ParsTreeNode
@@ -422,39 +489,11 @@ namespace FunctionParser
             TermPowFactor,
             Factor
         }
-        public static bool IsTerm(string term, string[] ids)
-        {
-            int oprIndx = -1;
-            int brackets = 0;
-            for (int i = term.Length - 1; i > 0; i--)
-            {
-                if ((term[i] == '*' || term[i] == '/' || term[i] == '^') && (brackets == 0))
-                {
-                    oprIndx = i;
-                    break;
-                }
-                else if (term[i] == ')') brackets++;
-                else if (term[i] == '(') brackets--;
-            }
-            if (oprIndx > 0)
-            {
-
-                string subterm, factor;
-                subterm = term.Substring(0, oprIndx);
-                factor = term.Substring(oprIndx + 1);
-                return Term.IsTerm(subterm, ids) && Factor.IsFactor(factor, ids);
-            }
-            else
-            {
-                return FunctionParser.Factor.IsFactor(term, ids);
-            }
-
-        }
         public TermExpansion Expansion { get; set; }
         public Term SubTerm { get; set; }
         public Factor Factor { get; set; }
-        public Term(string term, string[] ids, ParsTreeNode parent)
-            : base(term, ids, parent)
+        public Term(ConnectorsClass Connectors, string term, ParsTreeNode parent)
+            : base(term, parent)
         {
 
             this.Value = term;
@@ -477,8 +516,8 @@ namespace FunctionParser
                 char opr = term[oprIndx];
                 subterm = term.Substring(0, oprIndx);
                 factor = term.Substring(oprIndx + 1);
-                this.Factor = new Factor(factor, ids, this);
-                this.SubTerm = new Term(subterm, ids, this);
+                this.Factor = new Factor(Connectors, factor,this);
+                this.SubTerm = new Term(Connectors, subterm,this);
                 if (opr == '*')
                 {
                     this.Expansion = TermExpansion.TermMulFactor;
@@ -495,31 +534,31 @@ namespace FunctionParser
             else
             {
                 this.Expansion = TermExpansion.Factor;
-                this.Factor = new Factor(term, ids, this);
+                this.Factor = new Factor(Connectors, term, this);
             }
 
         }
-        public override object CalculateValue()
+        public override object CalculateValue(ConnectorsClass Connectors)
         {
             //rlel will crash if not numbers (doubles)
             if (Expansion == TermExpansion.TermDivFactor)
             {
-                return ((double)this.SubTerm.CalculateValue() / (double)this.Factor.CalculateValue());
+                return ((double)this.SubTerm.CalculateValue(Connectors) / (double)this.Factor.CalculateValue(Connectors));
             }
             else if (Expansion == TermExpansion.TermMulFactor)
             {
-                return ((double)this.SubTerm.CalculateValue() * (double)this.Factor.CalculateValue());
+                return ((double)this.SubTerm.CalculateValue(Connectors) * (double)this.Factor.CalculateValue(Connectors));
             }
             else if (Expansion == TermExpansion.TermPowFactor)
             {
-                return (Math.Pow((double)this.SubTerm.CalculateValue(), (double)this.Factor.CalculateValue()));
+                return (Math.Pow((double)this.SubTerm.CalculateValue(Connectors), (double)this.Factor.CalculateValue(Connectors)));
             }
             else
-                return (this.Factor.CalculateValue());
+                return (this.Factor.CalculateValue(Connectors));
         }
-        public override object[] CalculateValue(string[] ids, object[][] idsValues)
+        public override object[] CalculateValue(ConnectorsClass Connectors,  object[][] idsValues)
         {
-            return idsValues.Select(a => CalculateValue()).ToArray();
+            return idsValues.Select(a => CalculateValue(Connectors)).ToArray();
             /*
             object[] ret = new object[idsValues.Length];
             if (Expansion == TermExpansion.TermDivFactor)
@@ -559,44 +598,6 @@ namespace FunctionParser
             Term
         }
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="expr"></param>
-        /// <param name="ids">if ids is null, we won't check that aspect and validate anything as expression concerning ids</param>
-        /// <returns></returns>
-        public static bool IsExpression(string expr, string[] ids = null)
-        {
-            expr = expr.Replace(" ", "");
-            int oprIndx = -1;
-            int brackets = 0;
-            for (int i = expr.Length - 1; i > 0; i--)
-            {
-                if (((expr[i] == '-'&&!IsOperator(expr[i-1]))
-                    || expr[i] == '+') && (brackets == 0))
-                {
-                    oprIndx = i;
-                    break;
-                }
-                else if (expr[i] == ')') brackets++;
-                else if (expr[i] == '(') brackets--;
-            }
-            if (oprIndx > 0)
-            {
-                string subExpr, term;
-                subExpr = expr.Substring(0, oprIndx);
-                term = expr.Substring(oprIndx + 1);
-                return (FunctionParser.Term.IsTerm(term, ids) && IsExpression(subExpr, ids));
-            }
-            else
-            {
-                return FunctionParser.Term.IsTerm(expr, ids);
-            }
-        }
-        static bool IsOperator(char c)
-        {
-            return c == '-' || c == '+' || c == '*' || c == '/' || c == '^';
-        }
 
         public static Regex matcher = new Regex(
       "\\\"[^\\\"]+\\\"|(.+)",
@@ -605,12 +606,35 @@ namespace FunctionParser
     );
 
 
+        public static string Compute(string text, ConnectorsClass Connectors)
+        {
+            if (Statics.IsExpression(Connectors, text/*, idsNames*/))
+            {
+
+                Expression expression = new Expression(Connectors, text, null);
+                //TreeNode expr = new TreeNode(txt_expr.Text);
+                //CreateTreeNodes(expression, expr);
+                //trvw_ParseTree.Nodes.Clear();
+                //trvw_ParseTree.Nodes.Add(expr);
+                //trvw_ParseTree.ExpandAll();
+                //expression.ad
+                string result = string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0}", expression.CalculateValue(Connectors));
+               // string.Format("{0}", System.Globalization.CultureInfo.InvariantCulture);
+                return result;
+            }
+            else
+            {
+                return null;
+            }
+        }
+
+
 
         public ExpressionExpansion Expansion { get; set; }
         public Term Term { get; set; }
         public Expression SubExpression { get; set; }
-        public Expression(string expr, string[] ids, ParsTreeNode parent)
-            : base(expr, ids, parent)
+        public Expression(ConnectorsClass Connectors, string expr, ParsTreeNode parent)
+            : base(expr, parent)
         {
 
 
@@ -620,7 +644,7 @@ namespace FunctionParser
             int brackets = 0;
             for (int i = expr.Length - 1; i > 0; i--)
             {
-                if (((expr[i] == '-' && !IsOperator(expr[i - 1]))
+                if (((expr[i] == '-' && !Statics.IsOperator(expr[i - 1]))
                     || expr[i] == '+') && (brackets == 0))
                 {
                     oprIndx = i;
@@ -636,8 +660,8 @@ namespace FunctionParser
                 subExpr = expr.Substring(0, oprIndx);
                 term = expr.Substring(oprIndx + 1);
                 opr = expr[oprIndx];
-                this.Term = new Term(term, ids, this);
-                this.SubExpression = new Expression(subExpr, ids, this);
+                this.Term = new Term(Connectors, term, this);
+                this.SubExpression = new Expression(Connectors, subExpr, this);
                 if (opr == '-')
                 {
                     Expansion = ExpressionExpansion.ExpressionMinusTerm;
@@ -650,15 +674,15 @@ namespace FunctionParser
             else
             {
                 Expansion = ExpressionExpansion.Term;
-                this.Term = new Term(expr, ids, this);
+                this.Term = new Term(Connectors, expr, this);
             }
         }
-        public override object CalculateValue()
+        public override object CalculateValue(ConnectorsClass Connectors)
         {
             if (Expansion == ExpressionExpansion.ExpressionMinusTerm)
             {
-                var a = this.SubExpression.CalculateValue();
-                var b = this.Term.CalculateValue();
+                var a = this.SubExpression.CalculateValue(Connectors);
+                var b = this.Term.CalculateValue(Connectors);
 
                 if (a is double && b is double)
                     return ((double)a - (double)b);
@@ -667,19 +691,19 @@ namespace FunctionParser
             }
             else if (Expansion == ExpressionExpansion.ExpressionPlusTerm)
             {
-                var a = this.SubExpression.CalculateValue();
-                var b = this.Term.CalculateValue();
+                var a = this.SubExpression.CalculateValue(Connectors);
+                var b = this.Term.CalculateValue(Connectors);
                 if (a is double && b is double)
                     return ((double)a + (double)b);
                 else
                     return a.ToString() + b.ToString();
             }
             else
-                return (this.Term.CalculateValue());
+                return (this.Term.CalculateValue(Connectors));
         }
-        public override object[] CalculateValue(string[] ids, object[][] idsValues)
+        public override object[] CalculateValue(ConnectorsClass Connectors,  object[][] idsValues)
         {
-            return idsValues.Select(a => CalculateValue()).ToArray();
+            return idsValues.Select(a => CalculateValue(Connectors)).ToArray();
             /*
             object[] ret = new object[idsValues.Length];
             if (Expansion == ExpressionExpansion.ExpressionMinusTerm)
@@ -706,15 +730,15 @@ namespace FunctionParser
     public abstract class ParsTreeNode
     {
         public string Value { get; set; }
-        public abstract object CalculateValue();
-        public abstract object[] CalculateValue(string[] ids, object[][] idsValues);
+        public abstract object CalculateValue(ConnectorsClass Connectors);
+        public abstract object[] CalculateValue(ConnectorsClass Connectors,  object[][] idsValues);
         public ParsTreeNode Parent { get; set; }
-        public string[] IDs { get; set; }
-        protected ParsTreeNode(string value, string[] ids, ParsTreeNode parnet)
+        //public string[] IDs { get; set; }
+        protected ParsTreeNode(string value, ParsTreeNode parnet)
         {
             this.Value = value.Replace(" ","");
             this.Parent = parnet;
-            this.IDs = ids;
+           // this.IDs = ids;
         }
     }
 }
