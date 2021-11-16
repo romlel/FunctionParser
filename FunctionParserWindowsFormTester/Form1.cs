@@ -134,7 +134,7 @@ namespace FunctionParserWindowsFormTester
                         treeViewNode.Nodes.Add(")");
                         break;
                     case Factor.FactorExpansion.Function:
-                        treeViewNode.Nodes.Add("Function: " + factor.Function.Func.ToString());
+                        treeViewNode.Nodes.Add("Function: " + factor.Function.FuncName.ToString());
                         foreach (var factor_Function_Term in factor.Function.Terms)
                         {
                             TreeNode term = new TreeNode("Term: " + factor_Function_Term.Value);
@@ -160,7 +160,7 @@ namespace FunctionParserWindowsFormTester
                     trvw_ParseTree.Nodes.Clear();
                     trvw_ParseTree.Nodes.Add(expr);
                     trvw_ParseTree.ExpandAll();
-                    object result = expression.CalculateValue(idsValues);
+                    object result = expression.CalculateValue();
                     lbl_result.Text = result.ToString();// string.Format("= {0:f3}", result);
                 }
                 else

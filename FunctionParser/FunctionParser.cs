@@ -44,89 +44,112 @@ namespace FunctionParser
         }
     }
 
+    public static class Connectors
+    {
+        public static Func<string, bool> IsProperId = a => true;
+        public static Func<string, object> GetIdValue = a => 0.0;
+        public static Func<string, object[], object> ExecuteFunction = (a, b) => 0.0;
+    }
+
     public class Function : ParsTreeNode
     {
 
-        public class Executor
-        {
-            public Func<object, object> Compute;
-            public Func<object, object, object> Compute2;
-        }
+        //public class Executor
+        //{
+        //    public Func<object, object> Compute;
+        //    public Func<object, object, object> Compute2;
+        //}
 
-        public static Dictionary<string, Executor> _Catalog = new Dictionary<string, Executor>();
+        //public static Dictionary<string, Executor> _Catalog = new Dictionary<string, Executor>();
 
         //public enum FunctionEnum
         //{
         //    Sinh, Sin, Cosh, Cos, Tanh, Tan, Coth, Cot, Sich, Sic, Csch, Csc, E, Log, Ln
         //}
 
+        // an alpha character with alphanumerics after, at start of with a whitespace before
+        public static Regex fnRecognizer = new Regex(
+      "(^|\\W)(?<rad>\\p{L}+[\\w\\d_]*)\\((?<args>.*)\\)",
+    RegexOptions.CultureInvariant
+    | RegexOptions.Compiled
+    );
+
+
+
+
+
         public static bool IsFunction(string function, string[] ids)
         {
             function = function.ToLower();
-            foreach (string func in _Catalog.Keys.OrderByDescending(a=>a.Length))//Enum.GetNames(typeof(FunctionEnum)))
+            Match data = fnRecognizer.Match(function);
+
+            if (data.Success)
             {
-                if (function.StartsWith(func.ToLower()))
-                {
-                    if (function.Length >= func.Length + 2) // enough to have 2 parenthesis
-                    {
-                        string attributes = function.Substring(func.Length + 1, function.Length - func.Length - 2);
+                string attributes = data.Groups["args"].Value;
 
-                        return Commons.SplitComma(attributes).All(a=> Term.IsTerm(a, ids));
-                    }
+                if (string.IsNullOrWhiteSpace(attributes)) return true; //no args
 
-                   // return Term.IsTerm(function.Substring(func.Length), ids);
-                }
+                return Commons.SplitComma(attributes).All(a => Term.IsTerm(a, ids));
             }
+            
             return false;
         }
-        public Executor Func;
+        public string FuncName;
       //  public FunctionEnum Func { get; set; }
         public List<Term> Terms = new List<Term>();
 
         static Function()
         {
-            _Catalog.Add("do", new Executor() {  Compute = a => (double)a * 2 , Compute2 = (a,b)=> (double)a + (double)b });
+            //_Catalog.Add("do", new Executor() {  Compute = a => (double)a * 2 , Compute2 = (a,b)=> (double)a + (double)b });
         }
 
         public Function(string function, string[] ids, ParsTreeNode parent)
             : base(function, ids, parent)
         {
 
-            foreach (string func in _Catalog.Keys.OrderByDescending(a => a.Length))//Enum.GetNames(typeof(FunctionEnum)))
+            Match data = fnRecognizer.Match(function);
+
+            // foreach (string func in _Catalog.Keys.OrderByDescending(a => a.Length))//Enum.GetNames(typeof(FunctionEnum)))
             {
-                if (function.ToLower().StartsWith(func.ToLower()))
+              //  if (function.ToLower().StartsWith(func.ToLower()))
+              if (data.Success)
                 {
 
-                    Func = _Catalog[func];// (FunctionEnum)Enum.Parse(typeof(FunctionEnum), func);
+                    //  Func = _Catalog[func];// (FunctionEnum)Enum.Parse(typeof(FunctionEnum), func);
+                    FuncName = data.Groups["rad"].Value;
 
-
-                    if (function.Length >= func.Length + 2) // enough to have 2 parenthesis
+                    //if (function.Length >= func.Length + 2) // enough to have 2 parenthesis
                     {
-                        string attributes = function.Substring(func.Length + 1, function.Length - func.Length - 2);
+                        string attributes = data.Groups["args"].Value;// function.Substring(func.Length + 1, function.Length - func.Length - 2);
 
-                        foreach (var el in Commons.SplitComma(attributes))
+                        if (!string.IsNullOrWhiteSpace(attributes))
                         {
-                            this.Terms.Add( new Term(el, ids, this));
+                            foreach (var el in Commons.SplitComma(attributes))
+                            {
+                                this.Terms.Add(new Term(el, ids, this));
+                            }
                         }
                     }
 
 
-                    break;
+                    //break;
                 }
             }
         }
-        public override object CalculateValue(object[] idsValue)
+        public override object CalculateValue()
         {
-            object[] termValue = this.Terms.Select(a => a.CalculateValue(idsValue)).ToArray();
+            object[] termValue = this.Terms.Select(a => a.CalculateValue()).ToArray();
 
-            switch (termValue.Length)
-            {
-                case 1:
-                    default:
-                    return Func.Compute(termValue[0]);
-                case 2:
-                    return Func.Compute2(termValue[0], termValue[1]);
-            }
+            return Connectors.ExecuteFunction(FuncName, termValue);
+
+            //switch (termValue.Length)
+            //{
+            //    case 1:
+            //        default:
+            //        return Func.Compute(termValue[0]);
+            //    case 2:
+            //        return Func.Compute2(termValue[0], termValue[1]);
+            //}
 
                     /*switch (Func)
                     {
@@ -181,7 +204,7 @@ namespace FunctionParser
             }
         public override object[] CalculateValue(string[] ids, object[][] idsValues)
         {
-            return idsValues.Select(a => CalculateValue(a)).ToArray();
+            return idsValues.Select(a => CalculateValue()).ToArray();
 
        /*     object[][] termValue = this.Terms.Select (a=> a.CalculateValue(ids, idsValues)).ToArray();
             object[] ret = new object[termValue.Length];
@@ -288,7 +311,7 @@ namespace FunctionParser
         }
         private static bool IsID(string id, string[] ids)
         {
-            if (ids == null) return true;
+            if (ids == null) return (id.Trim().Length != 0) && Connectors.IsProperId(id);    // always true, but cannot be whitespace !
             foreach (string s in ids)
             {
                 if (id == s)
@@ -344,7 +367,7 @@ namespace FunctionParser
             }
 
         }
-        public override object CalculateValue(object[] idsValue)
+        public override object CalculateValue()
         {
             if (Expansion == FactorExpansion.Number)
             {
@@ -356,27 +379,29 @@ namespace FunctionParser
             }
             else if (Expansion == FactorExpansion.WrappedExpression)
             {
-                return (WrappedExpression.CalculateValue(idsValue));
+                return (WrappedExpression.CalculateValue());
             }
             else if (Expansion == FactorExpansion.Function)
             {
-                return (this.Function.CalculateValue(idsValue));
+                return (this.Function.CalculateValue());
             }
             else if(Expansion== FactorExpansion.MinuFactor)
             {
-                return -(double)(this.InnerFactor.CalculateValue(idsValue));
+                return -(double)(this.InnerFactor.CalculateValue());
             }
             else
             {
+                return Connectors.GetIdValue(this.Value);
+              //  return 2.0;
                 //ID
-                int idIndex = -1;
+            /*    int idIndex = -1;
                 for (int i = 0; i < IDs.Length; i++)
                     if (IDs[i] == this.Value)
                     {
                         idIndex = i;
                         break;
                     }
-                return idsValue[idIndex];
+                return idValues[idIndex];*/
 
             }
         }
@@ -385,7 +410,7 @@ namespace FunctionParser
             //IEnumerator idE = ids.GetEnumerator();
             //IEnumerator idsValuesE = idsValues.GetEnumerator();
 
-            return idsValues.Select(a => CalculateValue(a)).ToArray();
+            return idsValues.Select(a => CalculateValue()).ToArray();
         }
     }
     public class Term : ParsTreeNode
@@ -474,27 +499,27 @@ namespace FunctionParser
             }
 
         }
-        public override object CalculateValue(object[] idsValue)
+        public override object CalculateValue()
         {
             //rlel will crash if not numbers (doubles)
             if (Expansion == TermExpansion.TermDivFactor)
             {
-                return ((double)this.SubTerm.CalculateValue(idsValue) / (double)this.Factor.CalculateValue(idsValue));
+                return ((double)this.SubTerm.CalculateValue() / (double)this.Factor.CalculateValue());
             }
             else if (Expansion == TermExpansion.TermMulFactor)
             {
-                return ((double)this.SubTerm.CalculateValue(idsValue) * (double)this.Factor.CalculateValue(idsValue));
+                return ((double)this.SubTerm.CalculateValue() * (double)this.Factor.CalculateValue());
             }
             else if (Expansion == TermExpansion.TermPowFactor)
             {
-                return (Math.Pow((double)this.SubTerm.CalculateValue(idsValue), (double)this.Factor.CalculateValue(idsValue)));
+                return (Math.Pow((double)this.SubTerm.CalculateValue(), (double)this.Factor.CalculateValue()));
             }
             else
-                return (this.Factor.CalculateValue(idsValue));
+                return (this.Factor.CalculateValue());
         }
         public override object[] CalculateValue(string[] ids, object[][] idsValues)
         {
-            return idsValues.Select(a => CalculateValue(a)).ToArray();
+            return idsValues.Select(a => CalculateValue()).ToArray();
             /*
             object[] ret = new object[idsValues.Length];
             if (Expansion == TermExpansion.TermDivFactor)
@@ -628,12 +653,12 @@ namespace FunctionParser
                 this.Term = new Term(expr, ids, this);
             }
         }
-        public override object CalculateValue(object[] idsValue)
+        public override object CalculateValue()
         {
             if (Expansion == ExpressionExpansion.ExpressionMinusTerm)
             {
-                var a = this.SubExpression.CalculateValue(idsValue);
-                var b = this.Term.CalculateValue(idsValue);
+                var a = this.SubExpression.CalculateValue();
+                var b = this.Term.CalculateValue();
 
                 if (a is double && b is double)
                     return ((double)a - (double)b);
@@ -642,19 +667,19 @@ namespace FunctionParser
             }
             else if (Expansion == ExpressionExpansion.ExpressionPlusTerm)
             {
-                var a = this.SubExpression.CalculateValue(idsValue);
-                var b = this.Term.CalculateValue(idsValue);
+                var a = this.SubExpression.CalculateValue();
+                var b = this.Term.CalculateValue();
                 if (a is double && b is double)
                     return ((double)a + (double)b);
                 else
                     return a.ToString() + b.ToString();
             }
             else
-                return (this.Term.CalculateValue(idsValue));
+                return (this.Term.CalculateValue());
         }
         public override object[] CalculateValue(string[] ids, object[][] idsValues)
         {
-            return idsValues.Select(a => CalculateValue(a)).ToArray();
+            return idsValues.Select(a => CalculateValue()).ToArray();
             /*
             object[] ret = new object[idsValues.Length];
             if (Expansion == ExpressionExpansion.ExpressionMinusTerm)
@@ -681,7 +706,7 @@ namespace FunctionParser
     public abstract class ParsTreeNode
     {
         public string Value { get; set; }
-        public abstract object CalculateValue(object[] idsValue);
+        public abstract object CalculateValue();
         public abstract object[] CalculateValue(string[] ids, object[][] idsValues);
         public ParsTreeNode Parent { get; set; }
         public string[] IDs { get; set; }
