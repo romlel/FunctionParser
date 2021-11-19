@@ -14,16 +14,22 @@ namespace FunctionParser
         {
             string pattern1 = @"\(.*?\)";
 
+
+            string REPLACEMENT_STRING = "¤";
+            while (input.Contains(REPLACEMENT_STRING))  //just to be sure, we could be in a case when string contains our special replacement char
+                REPLACEMENT_STRING = "__" + UnityEditor.GUID.Generate().ToString() + "__";
+
+
             foreach (Match m in Regex.Matches(input, pattern1))
             {
                 input = input.Replace(m.Groups[0].ToString(),
-                                      m.Groups[0].ToString().Replace(",", "___86DAF157-DDD8-4250-80EF-623004AD422F___"));
+                                      m.Groups[0].ToString().Replace(",", REPLACEMENT_STRING));
             }
 
             string[] result = input.Split(',');
             for (int i = 0; i < result.Count(); i++)
             {
-                result[i] = result[i].Replace("___86DAF157-DDD8-4250-80EF-623004AD422F___", ",").Trim();
+                result[i] = result[i].Replace(REPLACEMENT_STRING, ",").Trim();
 
             }
             return result;
@@ -32,14 +38,18 @@ namespace FunctionParser
         {
             string pattern1 = @""".*?""";
 
+            string REPLACEMENT_STRING = "¤";
+            while (input.Contains(REPLACEMENT_STRING))  //just to be sure, we could be in a case when string contains our special replacement char
+                REPLACEMENT_STRING = "__" + UnityEditor.GUID.Generate().ToString() + "__";
+
             foreach (Match m in Regex.Matches(input, pattern1))
             {
                 input = input.Replace(m.Groups[0].ToString(),
-                                      m.Groups[0].ToString().Replace(" ", "___9D4BC392-BDD6-48F9-8204-4C64E0464882___"));
+                                      m.Groups[0].ToString().Replace(" ", REPLACEMENT_STRING));
             }
 
             input = input.Replace(" ", "");
-            input = input.Replace("___9D4BC392-BDD6-48F9-8204-4C64E0464882___", " ");
+            input = input.Replace(REPLACEMENT_STRING, " ");
             return input;
         }
     }
@@ -49,8 +59,11 @@ namespace FunctionParser
         internal static bool IsFactor(ConnectorsClass Connectors, string factor)
         {
             double tst;
+            bool tst2;
             if (double.TryParse(factor, out tst))
                 return true;
+            else if (bool.TryParse(factor, out tst2))
+                return tst2;
             else if (factor.StartsWith("\"") && factor.EndsWith("\"") && factor.Length > 1)
                 return true;
             else if (factor.StartsWith("(") && factor.EndsWith(")") && Statics.IsExpression(Connectors, factor.Substring(1, factor.Length - 2)))
@@ -399,7 +412,12 @@ namespace FunctionParser
 
             this.Value = factor;
             double value;
+            bool value2;
             if (double.TryParse(factor, out value))
+            {
+                this.Expansion = FactorExpansion.Number;
+            }
+            else if (bool.TryParse(factor, out value2))
             {
                 this.Expansion = FactorExpansion.Number;
             }
@@ -438,7 +456,10 @@ namespace FunctionParser
         {
             if (Expansion == FactorExpansion.Number)
             {
-                return (double.Parse(this.Value));
+                if (double.TryParse(this.Value, out double res))
+                    return res;
+                else
+                    return bool.Parse(this.Value);
             }
             if (Expansion == FactorExpansion.String)
             {
@@ -606,7 +627,7 @@ namespace FunctionParser
     );
 
 
-        public static string Compute(string text, ConnectorsClass Connectors)
+        public static object Compute(string text, ConnectorsClass Connectors)
         {
             if (Statics.IsExpression(Connectors, text/*, idsNames*/))
             {
@@ -618,7 +639,8 @@ namespace FunctionParser
                 //trvw_ParseTree.Nodes.Add(expr);
                 //trvw_ParseTree.ExpandAll();
                 //expression.ad
-                string result = string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0}", expression.CalculateValue(Connectors));
+                object result = expression.CalculateValue(Connectors);
+               // string result = string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0}", res);
                // string.Format("{0}", System.Globalization.CultureInfo.InvariantCulture);
                 return result;
             }
